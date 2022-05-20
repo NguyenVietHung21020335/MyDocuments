@@ -1,0 +1,278 @@
+1.Playground.cpp
+
+{
+	#include <vector>
+	#include <cassert> //cái này để bắt lỗi
+	#include <cstdlib>
+	#include "PlayGround.h"
+
+	có hàm //chưa hiểu //slide 17 //khởi tạo sân chơi thôi
+	PlayGround::PlayGround(int width, int height)
+   : squares(height, vector<CellType>(width, CELL_EMPTY)), //Khởi tạo ô vuông: dựa vào số dòng, số cột
+	  snake(this), // rắn phụ thuộc vào sân chơi, sửa hàm khởi tạo 
+	  status(GAME_RUNNING),
+	  score(0)
+	{
+	addCherry(); // Thêm 1 quả cherry
+	}
+
+	có hàm hủy PlayGround
+
+	có void PlayGround::changeCellState(Position pos, CellType type) //thay đổi trạng thái khí khở tạo/thêm đốt
+	{
+	assert(pos.isInsideBox(0,0,getWidth(),getHeight())); //chưa hiểu (đặt đây để chú ý tí thui) //báo cho ta biết lỗi
+	squares[pos.y][pos.x] = type; //chưa  hiểu // rất xàm nha chấm ở đây là truy nhập x và y từ struct pos chứ k phải là nhân//slide 23
+	}
+	có void PlayGround::processUserInput(UserInput input).......
+		void PlayGround::nextStep().......  //lấy từ PlayGround.h thui
+	có hàm thêm cherry //Cherry mới xuất hiện ngẫu nhiên trong các ô trống(CELL_EMPTY) //slide 44
+	void PlayGround::addCherry()
+	{
+	do {
+		Position p(rand() % getWidth(), rand() % getHeight());//tạo cherry ngẫu nhiên vs hàm random chiều dài và chiều rộng
+		if (getCellState(p) == CELL_EMPTY) { // nếu cái ô random ấy trống thì mình cho cherry vào, k thì lại random ra cái khác
+			changeCellState(p, CELL_CHERRY);
+			break;
+		}
+		} while (true);
+	}
+	có hàm  void PlayGround::setGameStatus(GameStatus status) 
+	có cái gì đây cx k bt //chưa hiểu // đã hiểu sơ  //lấy vị trí các đốt rắn // slide 54
+	vector<Position> PlayGround::getSnakePositions() const //Dùng hàm const trong PlayGround để bảo vệ dữ liệu về rắn
+	{
+	vector<Position> res;
+	for (SnakeNode* p = snake.getHead(); p != nullptr; p = p->next)
+		res.push_back(p->position); //thêm phần tử p->position vào cuối mảng res để có vị trí các đốt rắn khi di chuyển
+	return res;
+	}
+}
+
+2. Gallery.cpp //tải ảnh thui
+
+#include "Gallery.h"
+
+Gallery::Gallery(Painter& painter_)
+	: painter(painter_)
+{
+	loadGamePictures();
+}
+
+Gallery::~Gallery()
+{
+	for (SDL_Texture* texture : pictures)
+		SDL_DestroyTexture(texture);
+}
+
+void Gallery::loadGamePictures()
+{
+	pictures.push_back(painter.loadTexture("cherry.png"));
+	pictures.push_back(painter.loadTexture("snake_vertical.png"));
+	pictures.push_back(painter.loadTexture("snake_horizontal.png"));
+	pictures.push_back(painter.loadTexture("snake_head.jpg"));
+}
+
+
+
+
+
+3.Snake.cpp
+{
+	có Snake::Snake(PlayGround* playGround)//lại chưa hiểu hihi //hiểu r //Khởi tạo rắn
+	: head(new SnakeNode( Position(playGround->getWidth() / 2, playGround->getHeight() / 2))), //Khởi tạo đốt ở giữa sân chơi
+	  playGround(playGround),
+	  direction(Direction::RIGHT),
+	  cherry(0)
+	{
+	changePlayGroundState(CELL_SNAKE);//Thay đổi trạng thái ở ô này: CELL_SNAKE
+	} 
+	có Direction Snake::changeDirection(UserInput input) //chưa hiểu luôn//hiểu sơ thui  //Tính hướng đi mới của rắn
+	{
+	switch (input) {
+		case KEY_UP:    return direction != DOWN ? UP : direction;  //mấy cái != XXX ? YYY này Kiểm tra xem có được phép đổi hướng
+																//	(không	được đổi hướng ngược lại hướng đang đi)
+		case KEY_DOWN:  return direction != UP ? DOWN : direction;
+		case KEY_LEFT:  return direction != RIGHT ? LEFT : direction;
+		case KEY_RIGHT: return direction != LEFT ? RIGHT : direction;
+		default:        return direction;
+		}
+	}
+	có hàm quan trọng void 
+		void Snake::nextStep() //di chuyển, thay đổi rắn 
+		{
+			while (!inputQueue.empty()) { //nếu hàng đợi k trống
+				UserInput input = inputQueue.front(); //– Sử dụng hàm front();
+				inputQueue.pop();//– Mỗi lần front thì lại thực hiện pop để hàng đợi xóa phần tử đầu tiên, và phần tử tiếp theo sẽ được thế vào vị trí đầu tiên
+				Direction newDirection = changeDirection(input);
+				if (newDirection != direction) { //nếu có điều hướng mới thì đổi chiều 
+					direction = newDirection;
+					break;
+				}
+			}
+
+			Position newPosition = head->position.move(direction); //chưa hiểu cái này //đã hiểu
+																// tạo biến newPosition để lưu trữ vị trí tiếp theo mà nó tới
+																//để ngay dưới đây kiểm tra xem newPosition có hợp lệ k
+			if (!checkPosition(newPosition)) { //chưa hiểu // đã hiểu //tìm lại xem hàm checkPosition ở đâu // à nó ở ngay dưới file snake.cpp
+				playGround->setGameStatus(GAME_LOST);//chưa hiểu //đã hiểu nếu newPosition k hợp lệ thì chuyển trạng thái playGround sang thua
+				return;
+			}
+
+			CellType type = playGround->getCellState(newPosition); //chưa hiểu nốt //hàm lấy trạng thái ô vuông sắp đi tới thôi
+
+			changePlayGroundState(CELL_EMPTY); 
+			//Thêm một đốt nếu vừa ăn cherry
+			if (cherry > 0) {
+				cherry--;
+				head = new SnakeNode(newPosition, head);
+			}// Trường hợp không ăn, trườn lên phía trước,
+			else {
+				for (SnakeNode* p = head; p != nullptr; p = p->next) {
+					std::swap(p->position, newPosition);
+				}
+			}
+			changePlayGroundState(CELL_SNAKE);
+			//đánh dấu đã ăn cherry
+			if (type == CELL_CHERRY) { //nếu cái vị trí mới chứa cherry thì nó gọi hàm addCherry trong lớp playground để tạo quả mới
+				cherry++;
+				playGround->addCherry();
+			}
+		}
+
+	có  void Snake::changePlayGroundState(CellType type) //thay đổi sân tùy theo type
+
+	có bool Snake::checkPosition(Position pos) //kiểm tra xem có bị ra ngoài sân hay cắn phải người k
+}
+
+
+
+3.painter.cpp
+{
+		có Painter::Painter(SDL_Window* window, SDL_Renderer* renderer_)//khởi tạo
+			: renderer(renderer_)
+		{
+			SDL_RenderGetLogicalSize(renderer, &width, &height);//Chưa hiểu
+			if (width == 0 && height == 0)
+				SDL_GetWindowSize(window, &width, &height);//Lấy kích thước cửa sổ
+			//chưa hiểu // đã hiểu //Khởi tạo mặc định tọa độ,	màu và hướng ban đầu của bút vẽ, tô nền bằng màu xanh
+			setPosition(width / 2, height / 2); //chọn vị trí ngay giữa thui
+			setAngle(0);//góc
+			setColor(WHITE_COLOR);
+			clearWithBgColor(BLUE_COLOR);
+		}
+		có void Painter::setPosition(float x, float y)
+		có void Painter::setAngle(float angle)
+		có void Painter::setColor(SDL_Color color)//chưa hiểu 1 chút
+			{
+				this->color = color;
+				SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 0);//chưa hiểu // cần check lại hàm này của SDL //hình như là khởi tạo màu
+			}
+		có void Painter::clearWithBgColor(SDL_Color bgColor) //chưa hiểu //xóa màn hình với màu 
+		{
+			SDL_Color curColor = color;
+			setColor(bgColor);
+			SDL_RenderClear(renderer);
+			setColor(curColor);
+		}
+		có void Painter::moveForward(float length) //hàm di chuyển tiến lên đoạn bằng length
+		{
+			float prevX = x, prevY = y; // lưu lại điểm cũ
+			jumpForward(length);
+			SDL_RenderDrawLine(renderer, (int)prevX, (int)prevY, (int)x, (int)y); //hàm vẽ đường từ điểm cũ đến điểm mới
+		}
+
+		có void Painter::jumpForward(float length)
+		{
+			float rad = (angle / 180) * M_PI; //chuyển sang radian để dùng cos sin
+			x += (cos(rad) * length);
+			y -= (sin(rad) * length);
+		}
+
+		có void Painter::setRandomColor() //sẽ tạo ra randomcolor trên các đoạn (rc lec78 1:00) nma chưa hiểu để làm gì
+		{
+			Uint8 r = rand() % 256;
+			Uint8 g = rand() % 256;
+			Uint8 b = rand() % 256;
+			SDL_Color color = {r, g, b};
+			setColor(color);
+		}
+		có void Painter::createCircle(float radius) //hàm vẽ đường tròn -chưa biết có dùng k
+		{
+			double rad = (angle / 180) * M_PI;
+			int centerX = x + cos(rad) * radius;
+			int centerY = y - sin(rad) * radius;
+
+			int dx = radius;
+			int dy = 0;
+			int err = 0;
+
+			while (dx >= dy)
+			{
+				SDL_RenderDrawPoint(renderer, centerX + dx, centerY + dy);
+				SDL_RenderDrawPoint(renderer, centerX + dy, centerY + dx);
+				SDL_RenderDrawPoint(renderer, centerX - dy, centerY + dx);
+				SDL_RenderDrawPoint(renderer, centerX - dx, centerY + dy);
+				SDL_RenderDrawPoint(renderer, centerX - dx, centerY - dy);
+				SDL_RenderDrawPoint(renderer, centerX - dy, centerY - dx);
+				SDL_RenderDrawPoint(renderer, centerX + dy, centerY - dx);
+				SDL_RenderDrawPoint(renderer, centerX + dx, centerY - dy);
+
+				if (err <= 0)
+				{
+					dy += 1;
+					err += 2 * dy + 1;
+				}
+				if (err > 0)
+				{
+					dx -= 1;
+					err -= 2 * dx + 1;
+				}
+			}
+		}
+
+		có void Painter::createSquare(float size)
+		{
+			for (int i = 0; i < 4; ++i) {
+				moveForward(size);
+				turnLeft(90);
+			}
+		}
+
+		có void Painter::createParallelogram(float size)
+		{
+			for (int i = 0; i < 2; ++i) {
+				moveForward(size);
+				turnLeft(60);
+				moveForward(size);
+				turnLeft(120);
+			}
+		}
+
+		có SDL_Texture* Painter::loadTexture(string path)//tham khảo file lazyfoo bài 7 cụa mình nè
+		{
+			SDL_Texture* newTexture = NULL;
+			SDL_Surface* loadedSurface = IMG_Load(path.c_str());
+			if (loadedSurface == NULL)
+				cout << "Unable to load image " << path << " SDL_image Error: " << IMG_GetError() << endl;
+			else {
+				newTexture = SDL_CreateTextureFromSurface(renderer, loadedSurface);
+				if (newTexture == NULL)
+					cout << "Unable to create texture from " << path << " SDL Error: " << SDL_GetError() << endl;
+				SDL_FreeSurface(loadedSurface);
+			}
+			return newTexture;
+		}
+
+		có bool Painter::createImage(SDL_Texture* texture,
+				SDL_Rect* srcrect, SDL_Rect* dstrect)
+		{
+			if (texture == NULL) return false;
+			SDL_RenderCopy(renderer, texture, srcrect, dstrect); //hàm hiển thị ảnh đó ra màn hình
+			return true;
+		}
+
+}
+
+LAST: main.cpp
+{
+
+}
