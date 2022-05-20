@@ -1,0 +1,213 @@
+//width: chiều rộng
+//Height: chiều cao
+//direction : chiều hướng
+//position: vị trí
+//gallery bộ sưu tập
+//angle : hướng vẽ ( góc của tờ giấy)
+1. Position.h 
+{
+	có enum Direction(chiều hướng : lên xuống trái phải);
+	
+	có struct  Position(vị trí);//cái struct này để tiện quản lí vì luôn dùng x đi vs y để xđ vị trí
+	{
+		chứa định dạng Position    
+			Position(int x_, int y_) : x(x_), y(y_) {} //chưa hiểu  //đã đc giải thích- gán
+		chứa hàm Position Move(Direction d)- thay đổi vị trí ;
+		hàm bool isInsideBox(int left, int top, int width, int height) {
+			return x >= left && x < left + width && y >= top && y < top + height;
+		} // ở đây giống như tọa độ trái phải dưới trên nếu tất cả trong thì đúng còn chỉ cần 1 cái sai là nó sai
+
+		bool operator==(Position p) {//chưa hiểu hàm này nha 
+					//đã được giải thích trong file câu hỏi trên drive
+					//cơ bản là định nghĩa lại cái ==
+			return x == p.x && y == p.y;
+	}
+}
+
+2.Snake.h
+
+có include position.h và <queue>
+{
+	có class Playground;
+	có enum UserInput {
+		NO_INPUT = 0, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT
+	}; nhận đầu vào ng chơi
+	có Enum loại ô trong sân
+		enum CellType { CELL_EMPTY = 0, CELL_SNAKE, CELL_CHERRY }; // cần 3 cái này vì cái quả k thể xuất hiện ở vị trí cũ, cũng k thể xuất hiện trên ng rắn và chỉ có thể ở ô trống
+	có struct SnakeNode       // đốt rắn // cơ bản là sử lí đốt rắn mới //chú ý phía trong có dùng beien static
+		struct SnakeNode // này là phần Node //chưa hiểu // đã giải thích
+	{
+		Position position;
+		SnakeNode* next;
+
+		SnakeNode(Position p, SnakeNode* n = nullptr) : position(p), next(n) {} //Tạo một đốt mới có dữ liệu p và nối tới một đốt cũ
+		//chưa hiểu hàm này // đã giải thích ~ câu 3 //cơ bản đoạn này chưa hiểu lắm nma làm theo slide 
+
+		static SnakeNode* insertHead(SnakeNode* head, Position p)
+		{
+			SnakeNode* newHead = new SnakeNode(p, head);
+			return newHead;
+		}
+	};
+
+	có class Snake //chưa hiểu // cơ bản là thay đổi con rắn sau khi ăn và điều hướng
+	{
+		SnakeNode* head;
+		PlayGround* playGround;
+		Direction direction;
+		std::queue<UserInput> inputQueue; // xử lí hàng đợi kiểu dữ liệu "UserInput" tên inputQueue //có giải thích
+
+		int cherry;
+	public:
+		Snake(PlayGround* playGround);
+		~Snake();
+
+		void processUserInput(UserInput input);	//xử lí hàng đợi 
+		void nextStep(); //bước tiếp theo
+		bool checkPosition(Position pos); //thay đổi vị trí
+		SnakeNode* getHead() const { return head; }
+	private:
+		Direction changeDirection(UserInput input); //thay đổi điều hướng
+		void changePlayGroundState(CellType type); // thay đổi trạng thái sân chơi
+	};
+	
+}
+
+3. PlayGround.h
+#include <vector>
+#include "Snake.h"
+#include "Position.h"
+
+{
+	có enum  GameStatus {
+	GAME_RUNNING = 1,
+	GAME_STOP = 2,
+	GAME_WON = 4 | GAME_STOP, //|GAME_WON tức là GAME_STOP;
+	GAME_LOST = 8 | GAME_STOP,
+	};
+	
+
+	có lớp Playground //chưa hiểu nốt // cơ bản là Biểu diễn sân chơi //hiểu sơ sơ
+		class PlayGround
+	{
+		std::vector< std::vector<CellType> > squares; // mảng vector 2 chiều kiểu CellType tên squares 
+							// Hình chữ nhật → mảng 2 chiều trạng thái 
+							// Hình chữ nhật biểu diễn sân chơi.
+		Snake snake; //con rắn // chúng ta chưa biết con rắn nó như thế nào nma ta có lớp để thể hiện nó
+		GameStatus status;
+		int score; //biến điểm số để mô tả điểm số hay nói cách kahcs là số quả đã ăn bản chất độ dài rắn
+	public:
+		PlayGround(int width, int height);
+		~PlayGround();
+
+		bool isGameRunning() const { return status == GAME_RUNNING; }
+		void processUserInput(UserInput input);
+		void nextStep();
+		void changeCellState(Position pos, CellType type); //thay đổi trạng thái ô (để thêm cherry)
+		void addCherry();//thêm cherry
+
+		int getWidth() const { return squares[0].size(); }//chưa hiểu //tạm bỏ qua đc //cơ bản là lấy chiều cao vs chiều dài
+		int getHeight() const { return squares.size(); }
+		const std::vector< std::vector<CellType> >& getSquares() const { return squares; } //hàm lấy giá trị squares bth thui
+		CellType getCellState(Position p) const { return squares[p.y][p.x]; } //chưa hiểu 1 chút // tự nghĩ ra nó là hàm lấy trạng thái ô từ vị trí x y thôi và kiểu nó là kiểu CellType ( trống hay rắn hay quả)
+		void setGameStatus(GameStatus status); 
+
+		std::vector<Position> getSnakePositions() const; //khởi tạo hàm thui //chưa hiểu (hiểu sơ nma cần hỏi nên note lại đây ) hàm mảng động ?
+	};
+}
+
+4. painter.h
+#pragma once //chưa hiểu // đã đc giải thích
+{
+	có loạt các const màu;
+	có class painter 
+	{	
+		class Painter
+		{
+			float x; //x y vị trí đầu bút vẽ
+			float y;
+			float angle; //góc or  hướng vẽ ( góc của tờ giấy)
+			int width;
+			int height;
+			SDL_Color color; //màu đang dùng là gì nè
+			SDL_Renderer* renderer;
+		public:
+			Painter(SDL_Window* window, SDL_Renderer* renderer);
+
+			void setPosition(float x, float y); //chọn vị trí vẽ + 2 hàm lấy vị trí
+			float getX() const { return x; }
+			float getY() const { return y; }
+
+			void setAngle(float angle);//chọn góc vẽ + hàm
+			float getAngle() const { return angle; }
+
+			int getWidth() const { return width; }
+			int getHeight() const { return height; }
+
+			void setColor(SDL_Color color);//thiết lập màu mình vẽ
+			SDL_Color getColor() const { return color; }
+
+			SDL_Renderer* getRenderer() const { return renderer; }//lấy renderer
+
+			void clearWithBgColor(SDL_Color color); //xóa màn hình với màu 
+
+			// basic drawing functions  //loạt hàm di chuyển bút vẽ : move là vẽ còn jump là nhấc bút lên di chuyển
+
+			void moveForward(float length);
+			void jumpForward(float length);
+			void moveBackward(float length)
+			{
+				moveForward(-length);
+			}
+			void jumpBackward(float length)
+			{
+				jumpForward(-length);
+			}
+			//2 thằng này để xoay giấy
+			void turnLeft(float angle)
+			{
+				setAngle(this->angle + angle);
+			}
+			void turnRight(float angle)
+			{
+				turnLeft(-angle);
+			}
+			//4 hàm dưới đây chưa biết có dùng k nữa- cần check lại
+			void setRandomColor();
+
+			void createCircle(float radius);//tròn
+			void createSquare(float size);//vuông
+			void createParallelogram(float size); //bình hành
+
+			SDL_Texture* loadTexture(std::string path); //slide 73 lec78
+			bool createImage(SDL_Texture* texture, SDL_Rect* srcrect = nullptr, SDL_Rect* dstrect = nullptr);
+		};
+	
+	}
+}
+5. Gallery.h
+#ifndef GALLERY_H
+#define GALLERY_H
+
+#include <vector>
+#include <SDL.h>
+#include "painter.h"
+
+enum PictureID {
+	PIC_CHERRY = 0, PIC_SNAKE_VERTICAL,
+	PIC_SNAKE_HORIZONTAL, PIC_SNAKE_HEAD,
+};
+
+class Gallery
+{
+	std::vector<SDL_Texture*> pictures; //mảng chứa hình ảnh các đốt
+	Painter& painter;
+public:
+	Gallery(Painter& painter_);
+	~Gallery();
+
+	void loadGamePictures();
+	SDL_Texture* getImage(PictureID id) const { return pictures[id]; }
+};
+
+#endif // GALLERY_H
