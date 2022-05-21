@@ -1,0 +1,361 @@
+#include <iostream>
+#include <cstdlib>
+#include <ctime>
+#include <cmath>
+#include <chrono>
+#include <SDL.h>
+#include <SDL_image.h>
+
+#include "painter.h"
+#include "PlayGround.h"
+#include "Gallery.h"
+
+using namespace std;
+
+const int SCREEN_WIDTH = 900;
+const int SCREEN_HEIGHT = 600;
+const string WINDOW_TITLE = "Snake Game";
+
+const int GROUND_WIDTH = 30;
+const int GROUND_HEIGHT = 20;
+const int CELL_SIZE = 30;
+
+const double STEP_DELAY = 0.3;
+#define CLOCK_NOW chrono::system_clock::now
+typedef chrono::duration<double> ElapsedTime;
+
+SDL_Window* window;
+SDL_Renderer* renderer;
+SDL_Texture *backgroud_img = NULL;
+SDL_Texture *endgame_img = NULL;
+//initSDL(window, renderer);
+Painter painter(window, renderer);
+Gallery* gallery = nullptr; // global picture manager
+
+
+void logSDLError(std::ostream& os, const std::string &msg, bool fatal = false);
+void initSDL(SDL_Window* &window, SDL_Renderer* &renderer);
+void quitSDL(SDL_Window* window, SDL_Renderer* renderer);
+void waitUntilKeyPressed();
+
+void renderSplashScreen();
+void renderGamePlay(Painter&, const PlayGround& playGround);
+void renderGameOver(Painter&, const PlayGround& playGround);
+UserInput interpretEvent(SDL_Event e);
+void updateRankingTable(const PlayGround& playGround);
+
+
+void mainGame();
+
+SDL_Texture *loadTexture(string path) {
+	SDL_Surface *image = IMG_Load(path.c_str());
+	SDL_Texture *tmp = NULL;
+	if(image == NULL) {
+		cout << "Load image error\n";
+	} else {
+		tmp = SDL_CreateTextureFromSurface(renderer,image);
+		SDL_FreeSurface(image);
+		if(tmp == NULL) {
+			cout << "Create texture error\n";
+		}
+	}
+	return tmp;
+}
+
+bool loadImage(){
+    bool success = 1;
+    backgroud_img = loadTexture("_MG_2901 - Copy.jpg");
+    endgame_img = loadTexture("_MG_2901 - Copy.jpg");
+    if (backgroud_img == NULL || endgame_img == NULL) {
+        cout << "Load fail\n";
+        success = 0;
+    }
+
+    return success;
+}
+bool init() {
+	if(SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+		cout << "Init error\n";
+		return 0;
+	} else {
+		window = SDL_CreateWindow(WINDOW_TITLE.c_str(),SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,SCREEN_WIDTH,SCREEN_HEIGHT,SDL_WINDOW_SHOWN);
+		if(window == NULL) {
+			cout << "Create window error\n";
+			return 0;
+		} else {
+			renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+			if(renderer == NULL) {
+				cout << "Render create error\n";
+				return 0;
+			}
+			SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH, SCREEN_HEIGHT);
+		}
+	}
+	if(!loadImage()) {
+		cout << "Can't load image, there's something missing\n";
+		return 0;
+	}
+	return 1;
+}
+void renderTexture(SDL_Texture *tex, SDL_Renderer *ren, int x, int y, int w, int h)
+{
+    //Thiết lập hình chữ nhật đích mà chúng ta muốn vẽ ảnh vào trong
+    SDL_Rect dst;
+    dst.x = x;
+    dst.y = y;
+    dst.w = w;
+    dst.h = h;
+    //Đưa toàn bộ ảnh trong texture vào hình chữ nhật đích
+    //(ảnh sẽ co dãn cho khớp với kích cỡ mới)
+    SDL_RenderCopy(ren, tex, NULL, &dst);
+}
+void startGame(){
+    SDL_RenderClear(renderer);
+    renderTexture(backgroud_img, renderer, 0, 0, 500, 500);
+    SDL_RenderPresent(renderer);
+}
+void close()
+{
+	SDL_DestroyWindow(window);
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyTexture(backgroud_img);
+	SDL_DestroyTexture(endgame_img);
+	IMG_Quit();
+	SDL_Quit();
+}
+void initSDL(SDL_Window* &window, SDL_Renderer* &renderer)
+{
+    if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
+        logSDLError(std::cout, "SDL_Init", true);
+
+    window = SDL_CreateWindow(WINDOW_TITLE.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+    //window = SDL_CreateWindow(WINDOW_TITLE.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_FULLSCREEN_DESKTOP);
+
+    if (window == nullptr)
+        logSDLError(std::cout, "CreateWindow", true);
+
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    //SDL_Renderer *renderer = SDL_CreateSoftwareRenderer(SDL_GetWindowSurface(window));
+    if (renderer == nullptr)
+        logSDLError(std::cout, "CreateRenderer", true);
+
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+    SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH, SCREEN_HEIGHT);
+}
+bool clickStartMenu(){
+    SDL_Event e;
+    while (true){
+        while(SDL_PollEvent(&e) != 0) {
+                if(e.type == SDL_MOUSEBUTTONDOWN) {
+				//cout << e.button.x << " " << e.button.y << "\n";
+                if (e.button.x >= 0 && e.button.x <= 900 && e.button.y >= 0 && e.button.y <= 600) {
+                    return true;
+                }
+
+			}
+		}
+    }
+}
+bool clickEndMenu(){
+    SDL_Event e;
+    while (true){
+        while(SDL_PollEvent(&e) != 0) {
+			if(e.type == SDL_QUIT) {
+				close();
+				exit(0);
+			} else if(e.type == SDL_MOUSEBUTTONDOWN) {
+                if (e.button.x >= 0 && e.button.x <= 900 && e.button.y >= 0 && e.button.y <= 600) {
+                    return true;
+                }
+			}
+		}
+    }
+}
+void endGame(){
+    SDL_RenderClear(renderer);
+    renderTexture(backgroud_img, renderer, 0, 0, 500, 500);
+    SDL_RenderPresent(renderer);
+    if (clickStartMenu() == true){
+        mainGame();
+    }
+}
+
+void mainGame()
+{
+        srand(time(0));
+
+    SDL_Window* window;
+    SDL_Renderer* renderer;
+    initSDL(window, renderer);
+    Painter painter(window, renderer);
+    gallery = new Gallery(painter);
+
+        renderSplashScreen();
+        PlayGround playGround(GROUND_WIDTH, GROUND_HEIGHT);
+
+
+        SDL_Event e;
+        auto start = CLOCK_NOW();
+        renderGamePlay(painter, playGround);
+        while (playGround.isGameRunning()) {
+            while (SDL_PollEvent(&e)) {
+                UserInput input = interpretEvent(e);
+                playGround.processUserInput(input);
+            }
+
+            auto end = CLOCK_NOW();
+            ElapsedTime elapsed = end-start;
+            if (elapsed.count() > STEP_DELAY) {
+                playGround.nextStep();
+                renderGamePlay(painter, playGround);
+                start = end;
+            }
+            SDL_Delay(1);
+        }
+        endGame();
+
+        renderGameOver(painter, playGround);
+        updateRankingTable(playGround);
+}
+
+
+
+int main(int argc, char *argv[]) {
+    if (init())
+    {
+        startGame();
+
+        if (clickStartMenu() == true){
+            mainGame();
+        }
+
+        close();
+    }
+	return 0;
+}
+
+void logSDLError(std::ostream& os, const std::string &msg, bool fatal)
+{
+    os << msg << " Error: " << SDL_GetError() << std::endl;
+    if (fatal) {
+        SDL_Quit();
+        exit(1);
+    }
+}
+
+
+
+void quitSDL(SDL_Window* window, SDL_Renderer* renderer)
+{
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyWindow(window);
+	SDL_Quit();
+}
+
+void waitUntilKeyPressed()
+{
+    SDL_Event e;
+    while (true) {
+        if ( SDL_WaitEvent(&e) != 0 &&
+             (e.type == SDL_KEYDOWN || e.type == SDL_QUIT) )
+            return;
+        SDL_Delay(100);
+    }
+}
+
+float generateRandomNumber()
+{
+    return (float) rand() / RAND_MAX;
+}
+
+void renderSplashScreen()
+{
+
+}
+
+void drawCherry(Painter& painter, int left, int top)
+{
+    SDL_Rect dst = { left+5, top+5, CELL_SIZE-10, CELL_SIZE-10 };
+    painter.createImage(gallery->getImage(PIC_CHERRY), NULL, &dst);
+}
+
+void drawSnake(Painter& painter, int left, int top, vector<Position> pos)
+{
+    for (size_t i = 0; i < pos.size(); i++) {
+        SDL_Rect dst = { left+pos[i].x*CELL_SIZE+1, top+pos[i].y*CELL_SIZE+1, CELL_SIZE-2, CELL_SIZE-2 };
+        SDL_Texture* texture = NULL;
+        if (i > 0) {
+            if (pos[i].y == pos[i-1].y)
+                texture = gallery->getImage(PIC_SNAKE_HORIZONTAL);
+            else
+                texture = gallery->getImage(PIC_SNAKE_VERTICAL);
+        } else { // snake's head
+            texture = gallery->getImage(PIC_SNAKE_HEAD);
+        }
+        painter.createImage(texture, NULL, &dst);
+    }
+}
+
+void drawVerticalLine(Painter& painter, int left, int top, int cells)
+{
+    painter.setColor(WHITE_COLOR);
+    painter.setAngle(-90);
+    painter.setPosition(left, top);
+    painter.moveForward(cells * CELL_SIZE);
+}
+
+void drawHorizontalLine(Painter& painter, int left, int top, int cells)
+{
+    painter.setColor(WHITE_COLOR);
+    painter.setAngle(0);
+    painter.setPosition(left, top);
+    painter.moveForward(cells * CELL_SIZE);
+}
+
+void renderGamePlay(Painter& painter, const PlayGround& playGround)
+{
+    int top = 0, left = 0;
+    int width = playGround.getWidth();
+    int height = playGround.getHeight();
+    painter.clearWithBgColor(PURPLE_COLOR);
+
+    for (int i = 0; i <= width; i++)
+        drawVerticalLine(painter, left+i*CELL_SIZE, top+0, height);
+
+    for (int i = 0; i <= height; i++)
+        drawHorizontalLine(painter, left+0, top+i * CELL_SIZE, width);
+
+    const vector<vector<CellType> >& squares = playGround.getSquares();
+    for (int i = 0; i < height; i++)
+        for (int j = 0; j < width; j++)
+            if (squares[i][j] == CELL_CHERRY)
+                drawCherry(painter, left+j*CELL_SIZE, top+i*CELL_SIZE);
+
+    vector<Position> snakePositions = playGround.getSnakePositions();
+    drawSnake(painter, left, top, snakePositions);
+
+    SDL_RenderPresent(painter.getRenderer());
+}
+
+void renderGameOver(Painter&, const PlayGround& playGround)
+{
+
+}
+
+UserInput interpretEvent(SDL_Event e)
+{
+    if (e.type == SDL_KEYUP) {
+        switch (e.key.keysym.sym) {
+        case SDLK_UP: return KEY_UP;
+        case SDLK_DOWN: return KEY_DOWN;
+        case SDLK_LEFT: return KEY_LEFT;
+        case SDLK_RIGHT: return KEY_RIGHT;
+        }
+    }
+    return NO_INPUT;
+}
+
+void updateRankingTable(const PlayGround& playGround)
+{
+
+}
